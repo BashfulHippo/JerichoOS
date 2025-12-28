@@ -1,0 +1,14 @@
+# ARM64 Build Configuration for JerichoOS
+
+[build]
+target = "aarch64-jericho.json"
+
+[target.aarch64-jericho]
+rustflags = [
+    "-C", "link-arg=-Tsrc/arch/aarch64/linker.ld",
+    "-C", "relocation-model=static",
+]
+
+[unstable]
+build-std-features = ["compiler-builtins-mem"]
+build-std = ["core", "compiler_builtins", "alloc"]
