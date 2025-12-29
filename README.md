@@ -1,31 +1,29 @@
-# JerichoOS
+# 🔒 JerichoOS
 
-a microkernel with capability-based security and webassembly runtime
+A microkernel with capability-based security and webassembly runtime
 
-## what is this
+## What is this
 
-basically i wanted to see if i could build an OS that runs wasm code directly on hardware with actual security (not just process isolation but real unforgeable capabilities like seL4)
+I wanted to see if I could build an OS that runs wasm code directly on hardware with actual security. So, not just isolation, but real unforgeable capabilities like seL4. Turns out you can, and it actually works on both x86-64 and arm64.
 
-turns out you can, and it actually works on both x86-64 and arm64
-
-## why would you do this
+## Why would you do this
 
 mostly learning - wanted to understand:
 - how microkernels actually work
-- capability security (way cooler than unix permissions)
+- capability security (way more interesting than unix permissions)
 - wasm outside the browser
 - bare metal rust development
 - dual platform support
 
-also edge computing kinda needs something like this - current solutions are either too heavy (docker) or too unsafe (traditional rtos)
+also edge computing needs something like this - current solutions are either too heavy (docker) or too unsafe (traditional rtos)
 
-## does it work
+## Does it work
 
-yeah. boots in ~100ms, runs 5 different wasm demos including an mqtt broker, syscalls are faster than linux apparently
+yes, boots in ~100ms, runs 5 different wasm demos including an mqtt broker, syscalls are faster than linux apparently
 
 see the benchmark results below or just run `./demo_x86.sh`
 
-## features
+## Features
 
 - capability tokens for resource access (cant forge them, cant escalate privileges)
 - wasm runtime using wasmi
@@ -34,7 +32,7 @@ see the benchmark results below or just run `./demo_x86.sh`
 - ipc messaging
 - ~5mb kernel size
 
-## benchmarks
+## Benchmarks
 
 tested on x86-64:
 
@@ -47,7 +45,7 @@ tested on x86-64:
 
 both platforms pass all 5 demo tests
 
-## quick start
+## Quick Start
 
 need: rust nightly, qemu
 
@@ -60,7 +58,7 @@ need: rust nightly, qemu
 ./run_arm64.sh
 ```
 
-## architecture
+## Architecture
 
 ```
 wasm modules (untrusted code)
@@ -76,7 +74,7 @@ microkernel (scheduler, ipc, memory)
 hardware (x86-64 or arm64)
 ```
 
-## demos
+## Demos
 
 1. pure computation - factorial calc in wasm
 2. host functions - wasm calling kernel functions
@@ -84,7 +82,7 @@ hardware (x86-64 or arm64)
 4. mqtt broker - pub/sub messaging between wasm modules
 5. security - trying to access resources without proper caps (fails correctly)
 
-## how it works
+## How it works
 
 capabilities are unforgeable tokens that grant specific rights (read/write/execute). you literally cannot access memory or ipc endpoints without the right token. even if theres a bug in your wasm code it cant escape the sandbox
 
@@ -92,7 +90,7 @@ scheduler does preemptive multitasking, context switches measured at under 1us o
 
 wasm integration was tricky - had to make wasmi work in no_std environment and bridge it to the capability system
 
-## building
+## Building
 
 ```bash
 # install rust nightly
@@ -108,7 +106,7 @@ cargo build --release
 ./demo_x86.sh
 ```
 
-## status
+## Status
 
 | feature | x86-64 | arm64 |
 |---------|--------|-------|
@@ -121,22 +119,22 @@ cargo build --release
 | ipc | ✓ | ✓ |
 | demos | 5/5 | 5/5 |
 
-## known issues
+## Known Issues
 
 - mmu disabled on arm64 (causes perf issues, need to debug)
 - some demos have manual verification on arm64 (script pattern matching needs fix)
 - could optimize context switch more
 
-## what i learned
+## What I Learned
 
 - seL4 papers are dense but worth reading
 - arm64 and x86-64 are more different than expected (especially exceptions)
 - wasmi in no_std takes some work but definitely possible
-- github actions with arm64 runners is pretty cool
-- bootloaders are surprisingly complex
-- capability systems are actually way simpler than traditional access control once you get them
+- github actions with arm64 runners is interesting
+- bootloaders are complex
+- capability systems are simpler than traditional access control once you get them
 
-## files
+## Files
 
 - `src/` - kernel source (rust)
 - `demos/wasm/` - wasm demo modules
@@ -144,13 +142,9 @@ cargo build --release
 - `demo_x86.sh` / `demo_arm64.sh` - run all demos
 - `bench_x86.sh` / `bench_arm64.sh` - run benchmarks
 
-## references
+## References
 
 - seL4 whitepaper for capability design
 - osdev wiki for hardware specs
 - phil-opp's blog for rust os dev basics
 - wasmi docs for wasm integration
-
-## license
-
-MIT
