@@ -8,14 +8,14 @@ I wanted to see if I could build an OS that runs wasm code directly on hardware 
 
 ## Why would you do this
 
-mostly learning - wanted to understand:
+mostly learning, I wanted to understand:
 - how microkernels actually work
 - capability security (way more interesting than unix permissions)
 - wasm outside the browser
 - bare metal rust development
 - dual platform support
 
-also edge computing needs something like this - current solutions are either too heavy (docker) or too unsafe (traditional rtos)
+also edge computing needs something like this. current solutions are either too heavy (docker) or too unsafe (like traditional rtos)
 
 ## Does it work
 
@@ -88,7 +88,7 @@ capabilities are unforgeable tokens that grant specific rights (read/write/execu
 
 scheduler does preemptive multitasking, context switches measured at under 1us on x86-64
 
-wasm integration was tricky - had to make wasmi work in no_std environment and bridge it to the capability system
+wasm integration was tricky. I had to make wasmi work in no_std environment and bridge it to the capability system
 
 ## Building
 
