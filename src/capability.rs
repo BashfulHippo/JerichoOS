@@ -150,6 +150,12 @@ impl Capability {
 }
 
 /// Capability Space (CSpace) - stores all capabilities for an entity
+///
+/// Clone is implemented to allow snapshot-based capability checking.
+/// This enables checking capabilities without holding scheduler lock.
+/// Note: Cloning creates a point-in-time snapshot; revocations after
+/// clone are not reflected in the snapshot.
+#[derive(Clone)]
 #[repr(C)]  // ARM64: Ensure consistent layout
 pub struct CSpace {
     capabilities: BTreeMap<CapabilityId, Capability>,  // Restored BTreeMap

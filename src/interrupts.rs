@@ -3,7 +3,6 @@
 //! Handles CPU exceptions and hardware interrupts
 
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use x86_64::VirtAddr;
 use lazy_static::lazy_static;
 use crate::gdt;
 use pic8259::ChainedPics;
