@@ -52,8 +52,7 @@ Prerequisites:
 ### AArch64 demo run
 
 ```bash
-./build_arm64.sh
-./run_arm64.sh
+./demo_arm64.sh
 ```
 
 ## Benchmark Notes
@@ -92,4 +91,5 @@ Before pushing:
 cargo check --bin jericho_os --release
 cargo check --bin jericho_os_arm64 --release --target aarch64-jericho.json -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem
 ./demo_x86.sh
+./demo_arm64.sh
 ```
