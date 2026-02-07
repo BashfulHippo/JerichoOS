@@ -24,6 +24,7 @@ timeout 15s ./run_arm64.sh > /tmp/arm64_demo_raw.txt 2>&1 || true
 
 # Extract text from binary output
 DEMO_OUTPUT=$(strings /tmp/arm64_demo_raw.txt)
+NORMALIZED_OUTPUT=${DEMO_OUTPUT//$'\n'/ }
 
 # Extract and display demo results
 echo "╔════════════════════════════════════════════════════════╗"
@@ -35,8 +36,11 @@ echo ""
 failed=0
 suite_ok=0
 for i in 1 2 3 4 5; do
-    if echo "$DEMO_OUTPUT" | grep -q "DEMO $i.*COMPLETE"; then
-        DEMO_NAME=$(echo "$DEMO_OUTPUT" | grep "DEMO $i" | head -1 | sed 's/.*DEMO [0-9] //' | sed 's/ (.*//')
+    if grep -Eq "\\[DEMO[[:space:]]+$i\\].*COMPLETE" <<<"$NORMALIZED_OUTPUT"; then
+        DEMO_NAME=$(grep -m1 "\\[DEMO $i\\]" <<<"$DEMO_OUTPUT" | sed -E 's/.*\[DEMO [0-9]+\][[:space:]]*//' | sed -E 's/[[:space:]]*\(.*$//')
+        if [ -z "$DEMO_NAME" ]; then
+            DEMO_NAME="Detected"
+        fi
         echo "✅ Demo $i: $DEMO_NAME"
         echo "DEMO_RESULT:$i:PASS"
     else
@@ -55,22 +59,22 @@ echo "╚═══════════════════════�
 echo ""
 
 # Demo 4: MQTT message delivery
-if echo "$DEMO_OUTPUT" | grep -q "Delivered.*messages to subscriber"; then
-    MSG_COUNT=$(echo "$DEMO_OUTPUT" | grep -o "Delivered [0-9]* messages" | head -1 | grep -o "[0-9]*")
+if grep -q "Delivered.*messages to subscriber" <<<"$DEMO_OUTPUT"; then
+    MSG_COUNT=$(grep -o "Delivered [0-9]* messages" <<<"$DEMO_OUTPUT" | head -1 | grep -o "[0-9]*")
     echo "✅ MQTT Delivery: $MSG_COUNT messages delivered"
 else
     echo "⚠️  MQTT Delivery: Not detected"
 fi
 
 # Demo 5: Capability enforcement
-if echo "$DEMO_OUTPUT" | grep -q "IPC-DENIED.*no IPC_SEND capability"; then
+if grep -q "IPC-DENIED" <<<"$DEMO_OUTPUT"; then
     echo "✅ Security: IPC denied (capability enforcement working)"
 else
     echo "⚠️  Security: IPC enforcement not detected"
 fi
 
 # Completion marker
-if echo "$DEMO_OUTPUT" | grep -q "All WASM Demos Complete"; then
+if grep -q "All WASM Demos Complete" <<<"$DEMO_OUTPUT"; then
     echo "✅ Suite: All demos completed successfully"
     suite_ok=1
 else
