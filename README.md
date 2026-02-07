@@ -1,78 +1,91 @@
 # JerichoOS
 
-a minimal microkernel written in rust with capability-based security and a webassembly runtime. runs untrusted wasm modules on bare metal (no standard library).
+JerichoOS is a Rust `no_std` microkernel experiment with a capability model and a WebAssembly runtime (`wasmi`) for untrusted module execution.
 
-## what it does
+## Scope
 
-- capability model for access control (inspired by seL4)
-- basic scheduler and message passing (ipc)
-- runs wasm modules using wasmi
-- supports both x86-64 and arm64
+This project is focused on:
+- capability-based access control for kernel services,
+- a minimal scheduler/IPC core,
+- running WASM modules in a bare-metal context,
+- keeping x86-64 and AArch64 ports in one codebase.
 
-this is a learning project, not meant for production use.
+This is a research/learning kernel, not a production operating system.
 
-## status
+## Current Status
 
-both x86-64 and arm64 build, boot in qemu, and run the wasm demo suite. ci workflows are set up for automated testing.
+| Area | x86-64 | AArch64 |
+|---|---|---|
+| Kernel builds | Yes | Yes |
+| Boots in QEMU | Yes | Yes |
+| WASM demo suite | Yes | Yes |
+| CI workflow | Yes | Yes |
 
-last verified feb 7, 2026 with:
+Verified locally on February 7, 2026:
 - `cargo check --bin jericho_os --release`
 - `cargo check --bin jericho_os_arm64 --release --target aarch64-jericho.json -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem`
 
-## how it's layered
+## Architecture Snapshot
 
 ```text
-wasm modules (sandboxed)
-  -> wasmi runtime
+WASM modules (sandboxed)
+  -> wasmi host bridge
   -> capability checks
-  -> syscalls + ipc
-  -> scheduler, memory, interrupts
-  -> arch layer (x86-64 or arm64)
+  -> syscall / IPC interfaces
+  -> scheduler + memory + interrupt handling
+  -> architecture layer (x86-64 or AArch64)
 ```
 
-## running it
+## Quick Start
 
-you'll need:
-- rust nightly with `rust-src` and `llvm-tools-preview`
-- qemu (`qemu-system-x86`, `qemu-system-aarch64`)
-- wabt (`wat2wasm`) if rebuilding .wat demos
+Prerequisites:
+- Rust nightly with `rust-src` and `llvm-tools-preview`
+- QEMU (`qemu-system-x86`, `qemu-system-aarch64`)
+- WABT (`wat2wasm`) only if you want to rebuild `.wat` demos
 
-x86-64:
+### x86-64 demo run
+
 ```bash
 ./demo_x86.sh
 ```
 
-arm64:
+### AArch64 demo run
+
 ```bash
 ./demo_arm64.sh
 ```
 
-## benchmarks
+## Benchmark Notes
 
-see `BENCHMARKS.md` for numbers. keep in mind these are from qemu, not real hardware, so they're mainly useful for comparing changes within the kernel.
+See `BENCHMARKS.md`.
 
-## repo structure
+Important caveat: these numbers are from QEMU-based runs and should be treated as comparative kernel-internal signals, not hardware-accurate production benchmarks.
 
-- `src/`: kernel code
-- `src/arch/aarch64/`: arm64-specific bits
-- `demos/wasm/`: wasm modules for the demo suite
-- `demo_x86.sh`, `demo_arm64.sh`: test runners
-- `bench_x86.sh`, `bench_arm64.sh`: benchmarks
-- `.github/workflows/`: ci setup
-- `docs/PROJECT_STATUS.md`: current status and limitations
+## Repo Layout
 
-## rebuilding demos
+- `src/`: kernel implementation
+- `src/arch/aarch64/`: AArch64-specific architecture code
+- `demos/wasm/`: WASM demo inputs/artifacts used by kernel demo suite
+- `demo_x86.sh`, `demo_arm64.sh`: demo runners
+- `bench_x86.sh`, `bench_arm64.sh`: benchmark runners
+- `.github/workflows/`: CI pipelines for x86-64 and AArch64
+- `docs/PROJECT_STATUS.md`: concise status and known limitations
+- `DECISIONS.md`: architectural decision records
 
-- `01_add.wasm`, `02_hello.wasm`, `03_syscall.wasm` can be rebuilt from `.wat` sources
-- mqtt and security demos are prebuilt `.wasm` files (vendored for now)
+## Reproducibility Notes
 
-## known issues
+- `01_add.wasm`, `02_hello.wasm`, and `03_syscall.wasm` are generated from `.wat` sources in `demos/wasm/`.
+- MQTT and security demo modules are currently vendored as prebuilt `.wasm` artifacts in `demos/wasm/`.
 
-- arm64 uart doesn't format numbers properly yet (shows placeholders)
-- arm64 memory setup is basic, not full virtual memory
-- still some compiler warnings to clean up
+## Known Limitations
 
-## testing locally
+- AArch64 UART formatting is currently limited; some numeric prints are placeholders.
+- AArch64 memory setup is still conservative and not a full production-grade virtual memory subsystem.
+- The codebase still has warning debt that should be reduced over time.
+
+## Quality Gates
+
+Before pushing:
 
 ```bash
 cargo check --bin jericho_os --release
