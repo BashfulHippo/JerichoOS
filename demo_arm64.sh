@@ -75,10 +75,10 @@ fi
 
 # Completion marker
 if grep -q "All WASM Demos Complete" <<<"$DEMO_OUTPUT"; then
-    echo "* Suite: All demos completed successfully"
+    echo "Suite: All demos completed successfully"
     suite_ok=1
 else
-    echo "!  Suite: Incomplete execution"
+    echo "Suite: Incomplete execution"
 fi
 
 echo ""
