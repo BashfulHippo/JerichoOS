@@ -1,57 +1,43 @@
-# project status
+# Project Status
 
-last updated: jan 2026
+Last updated: February 7, 2026
 
-## current state
+## Summary
 
-production ready on both arm64 and x86-64. all 5 demos pass on both platforms.
+JerichoOS currently builds on x86-64 and AArch64, boots in QEMU on both, and runs the WASM demo suite through shared runtime code.
 
-### what works
+## What Is Working
 
-- boots in ~100-500ms
-- 8mb heap, ~5mb binary size
-- capability-based security (sel4-style)
-- wasm runtime (wasmi)
-- preemptive scheduler
-- ipc between modules
-- mqtt pub/sub demo
-- quantitative benchmarks
+- x86-64 kernel boot path and runtime initialization
+- AArch64 kernel boot path and runtime initialization
+- capability subsystem initialization and checks
+- WASM runtime integration (`wasmi`)
+- demo runner scripts for both architectures
+- CI workflows for both architectures
 
-### platforms
+## What Is Partially Working
 
-both arm64 and x86-64 have:
-- uefi boot
-- all 5 wasm demos passing
-- github actions ci
-- identical feature set
+- AArch64 benchmark output is limited by current UART formatting path
+- some diagnostics are present but not yet standardized across modules
 
-## demos
+## Known Technical Debt
 
-1. pure computation - add, multiply, factorial
-2. host function calls - wasm calling kernel functions
-3. syscalls and capabilities - permission checks
-4. mqtt pub/sub - broker, publisher, subscriber working
-5. security isolation - malicious module blocked
+- warning count is high on both architecture targets
+- AArch64 memory/MMU path is intentionally conservative and needs hardening
+- several scripts still prioritize convenience over strict reproducibility
 
-all demos verified on both platforms.
+## Evidence / Verification
 
-## benchmarks
+Local checks executed successfully on February 7, 2026:
 
-- syscall latency: 94ns
-- ipc throughput: 11.9M msg/sec
-- context switch: <1µs
-- boot time: ~100ms in qemu
+```bash
+cargo check --bin jericho_os --release
+cargo check --bin jericho_os_arm64 --release --target aarch64-jericho.json -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem
+```
 
-## known issues
+## Near-Term Priorities
 
-heap allocator has fragmentation issues. needs 8mb for a 1mb allocation. linked_list_allocator is simple but not great. could use buddy/slab/tlsf later.
-
-arm64 mmu is identity-mapped only. works fine for now.
-
-## what this proves
-
-you can build a secure microkernel that's 20-40x smaller than docker containers while maintaining capability-based isolation. wasm runtime works on bare metal. both major architectures supported with unified codebase.
-
-## next steps
-
-maybe add better allocator, multi-core support, more network protocols. formal verification would be cool. but it works as-is for the demo.
+1. Reduce warning surface (focus on dead code and formatting placeholders).
+2. Improve ARM64 output formatting path to remove placeholder output.
+3. Add stronger automated validation around capability denial paths.
+4. Continue tightening docs so every claim maps to a reproducible command.

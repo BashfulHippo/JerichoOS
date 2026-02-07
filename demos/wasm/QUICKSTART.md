@@ -1,37 +1,35 @@
-# wasm demos quick start
+# WASM Demos Quick Start
 
-## install tools
+## 1. Install WABT (optional, for rebuilding `.wat` demos)
 
 ```bash
 sudo apt-get install wabt
 ```
 
-## build demos
+## 2. Rebuild `.wat` demos
 
 ```bash
 cd demos/wasm
 make
 ```
 
-compiles all `.wat` text files to `.wasm` binaries.
+## 3. Run kernel demo suite
 
-## test on x86-64
+x86-64:
 
 ```bash
 cd ../..
-cargo run
+./demo_x86.sh
 ```
 
-look for the wasm demo suite section in output. all 5 demos should pass.
+AArch64:
 
-## troubleshooting
+```bash
+cd ../..
+./demo_arm64.sh
+```
 
-**"no such file: demos/wasm/01_add.wasm"**
-- run `make` in `demos/wasm/` first
+## Validation
 
-**"wat2wasm: command not found"**
-- install wabt: `sudo apt-get install wabt`
-
-**"failed to load module"**
-- check validity: `wasm-validate 01_add.wasm`
-- try recompiling: `make clean && make`
+- x86-64 script prints `DEMO_RESULT:<n>:PASS` markers
+- AArch64 output includes `DEMO <n> ... COMPLETE` markers

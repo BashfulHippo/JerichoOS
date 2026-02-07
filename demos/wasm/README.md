@@ -1,90 +1,39 @@
-# wasm demos
+# WASM Demo Assets
 
-these are the test suite for jerichoos. if they pass on x86-64, they should pass on arm64 too.
+This folder contains WebAssembly modules consumed by the JerichoOS kernel demo suite.
 
-## what they test
+## Source-Backed Modules
 
-- wasm runtime integration (wasmi)
-- host function calls
-- capability system
-- security isolation
-- cross-architecture compatibility
+These have `.wat` source files in this directory and can be rebuilt:
+- `01_add.wasm`
+- `02_hello.wasm`
+- `03_syscall.wasm`
 
-## demos
+## Vendored Binary Modules
 
-### 01_add.wat - pure computation
+These are currently kept as prebuilt `.wasm` artifacts:
+- `mqtt_broker.wasm`
+- `mqtt_publisher.wasm`
+- `mqtt_subscriber.wasm`
+- `malicious_module.wasm`
 
-basic wasm execution. tests parameters and recursion.
+## Build `.wat`-Backed Demos
 
-functions:
-- `add(a, b)` - adds two numbers
-- `mul(a, b)` - multiplies two numbers
-- `factorial(n)` - recursive factorial
-
-expected results:
-```
-add(2, 3) = 5
-mul(7, 6) = 42
-factorial(5) = 120
-```
-
-### 02_hello.wat - host function calls
-
-tests wasm calling kernel functions.
-
-functions:
-- `main()` - prints 42, 100, 255 via host
-- `print_range(start, end)` - prints range of numbers
-
-expected results:
-```
-[WASM] Print called: 42
-[WASM] Print called: 100
-[WASM] Print called: 255
-```
-
-### 03_syscall.wat - capability system
-
-tests syscall bridge and permission checks.
-
-functions:
-- `test_syscall()` - valid syscall (should succeed)
-- `test_allocate(size)` - memory allocation (needs capability)
-- `test_unauthorized()` - unauthorized access (should fail)
-
-expected results:
-```
-[WASM] Syscall 1 (1, 4096, 10) - SUCCESS
-[WASM] Syscall 2 (1024, 0, 0) - SUCCESS (has capability)
-[WASM] Syscall 0 (99, 8192, 100) - DENIED (no capability)
-```
-
-## building
-
-install wabt (webassembly binary toolkit):
 ```bash
-sudo apt-get install wabt
+cd demos/wasm
+make
 ```
 
-compile wat to wasm:
+or
+
 ```bash
-chmod +x compile.sh
+cd demos/wasm
 ./compile.sh
 ```
 
-this generates `.wasm` binaries from `.wat` text files.
+Requirements:
+- `wat2wasm` from WABT
 
-## running
+## How Kernel Uses These
 
-the compiled `.wasm` files are embedded in the kernel and executed during boot. see `src/main.rs` for the test harness.
-
-## adding new demos
-
-1. write `.wat` file
-2. document purpose and expected results
-3. add to `compile.sh`
-4. create corresponding test in `src/main.rs`
-5. verify on x86-64 first
-6. cross-validate on arm64
-
-wasm binary format is extremely compact. typical compression is 90%+.
+The kernel embeds these modules via `include_bytes!` in `src/demos/wasm_tests.rs`.

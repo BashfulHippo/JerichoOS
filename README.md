@@ -1,150 +1,95 @@
-# 🔒 JerichoOS
+# JerichoOS
 
-A microkernel with capability-based security and webassembly runtime
+JerichoOS is a Rust `no_std` microkernel experiment with a capability model and a WebAssembly runtime (`wasmi`) for untrusted module execution.
 
-## What is this
+## Scope
 
-I wanted to see if I could build an OS that runs wasm code directly on hardware with actual security. So, not just isolation, but real unforgeable capabilities like seL4. Turns out you can, and it actually works on both x86-64 and arm64.
+This project is focused on:
+- capability-based access control for kernel services,
+- a minimal scheduler/IPC core,
+- running WASM modules in a bare-metal context,
+- keeping x86-64 and AArch64 ports in one codebase.
 
-## Why would you do this
+This is a research/learning kernel, not a production operating system.
 
-mostly learning, I wanted to understand:
-- how microkernels actually work
-- capability security (way more interesting than unix permissions)
-- wasm outside the browser
-- bare metal rust development
-- dual platform support
+## Current Status
 
-also edge computing needs something like this. current solutions are either too heavy (docker) or too unsafe (like traditional rtos)
+| Area | x86-64 | AArch64 |
+|---|---|---|
+| Kernel builds | Yes | Yes |
+| Boots in QEMU | Yes | Yes |
+| WASM demo suite | Yes | Yes |
+| CI workflow | Yes | Yes |
 
-## Does it work
+Verified locally on February 7, 2026:
+- `cargo check --bin jericho_os --release`
+- `cargo check --bin jericho_os_arm64 --release --target aarch64-jericho.json -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem`
 
-yes, boots in ~100ms, runs 5 different wasm demos including an mqtt broker, syscalls are faster than linux apparently
+## Architecture Snapshot
 
-see the benchmark results below or just run `./demo_x86.sh`
-
-## Features
-
-- capability tokens for resource access (cant forge them, cant escalate privileges)
-- wasm runtime using wasmi
-- x86-64 and arm64 support
-- preemptive scheduler
-- ipc messaging
-- ~5mb kernel size
-
-## Benchmarks
-
-tested on x86-64:
-
-| metric | result |
-|--------|--------|
-| syscall latency | 94 ns |
-| ipc throughput | 11.9M msg/sec |
-| boot time | ~100ms |
-| kernel size | ~5 MB |
-
-both platforms pass all 5 demo tests
+```text
+WASM modules (sandboxed)
+  -> wasmi host bridge
+  -> capability checks
+  -> syscall / IPC interfaces
+  -> scheduler + memory + interrupt handling
+  -> architecture layer (x86-64 or AArch64)
+```
 
 ## Quick Start
 
-need: rust nightly, qemu
+Prerequisites:
+- Rust nightly with `rust-src` and `llvm-tools-preview`
+- QEMU (`qemu-system-x86`, `qemu-system-aarch64`)
+- WABT (`wat2wasm`) only if you want to rebuild `.wat` demos
+
+### x86-64 demo run
 
 ```bash
-# x86
 ./demo_x86.sh
+```
 
-# arm64
+### AArch64 demo run
+
+```bash
 ./build_arm64.sh
 ./run_arm64.sh
 ```
 
-## Architecture
+## Benchmark Notes
 
-```
-wasm modules (untrusted code)
-    ↓
-wasmi runtime
-    ↓
-capability layer ← can only access what you have tokens for
-    ↓
-syscall interface
-    ↓
-microkernel (scheduler, ipc, memory)
-    ↓
-hardware (x86-64 or arm64)
-```
+See `BENCHMARKS.md`.
 
-## Demos
+Important caveat: these numbers are from QEMU-based runs and should be treated as comparative kernel-internal signals, not hardware-accurate production benchmarks.
 
-1. pure computation - factorial calc in wasm
-2. host functions - wasm calling kernel functions
-3. syscalls - wasm using capability-protected syscalls
-4. mqtt broker - pub/sub messaging between wasm modules
-5. security - trying to access resources without proper caps (fails correctly)
+## Repo Layout
 
-## How it works
+- `src/`: kernel implementation
+- `src/arch/aarch64/`: AArch64-specific architecture code
+- `demos/wasm/`: WASM demo inputs/artifacts used by kernel demo suite
+- `demo_x86.sh`, `demo_arm64.sh`: demo runners
+- `bench_x86.sh`, `bench_arm64.sh`: benchmark runners
+- `.github/workflows/`: CI pipelines for x86-64 and AArch64
+- `docs/PROJECT_STATUS.md`: concise status and known limitations
+- `DECISIONS.md`: architectural decision records
 
-capabilities are unforgeable tokens that grant specific rights (read/write/execute). you literally cannot access memory or ipc endpoints without the right token. even if theres a bug in your wasm code it cant escape the sandbox
+## Reproducibility Notes
 
-scheduler does preemptive multitasking, context switches measured at under 1us on x86-64
+- `01_add.wasm`, `02_hello.wasm`, and `03_syscall.wasm` are generated from `.wat` sources in `demos/wasm/`.
+- MQTT and security demo modules are currently vendored as prebuilt `.wasm` artifacts in `demos/wasm/`.
 
-wasm integration was tricky. I had to make wasmi work in no_std environment and bridge it to the capability system
+## Known Limitations
 
-## Building
+- AArch64 UART formatting is currently limited; some numeric prints are placeholders.
+- AArch64 memory setup is still conservative and not a full production-grade virtual memory subsystem.
+- The codebase still has warning debt that should be reduced over time.
+
+## Quality Gates
+
+Before pushing:
 
 ```bash
-# install rust nightly
-rustup toolchain install nightly
-rustup default nightly
-
-# install qemu
-sudo apt-get install qemu-system-x86 qemu-system-aarch64  # ubuntu/debian
-# brew install qemu  # macos
-
-# build and run
-cargo build --release
+cargo check --bin jericho_os --release
+cargo check --bin jericho_os_arm64 --release --target aarch64-jericho.json -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem
 ./demo_x86.sh
 ```
-
-## Status
-
-| feature | x86-64 | arm64 |
-|---------|--------|-------|
-| boot | ✓ | ✓ |
-| interrupts | ✓ | ✓ |
-| heap allocator | ✓ | ✓ |
-| scheduler | ✓ | ✓ |
-| wasm runtime | ✓ | ✓ |
-| capabilities | ✓ | ✓ |
-| ipc | ✓ | ✓ |
-| demos | 5/5 | 5/5 |
-
-## Known Issues
-
-- mmu disabled on arm64 (causes perf issues, need to debug)
-- some demos have manual verification on arm64 (script pattern matching needs fix)
-- could optimize context switch more
-
-## What I Learned
-
-- seL4 papers are dense but worth reading
-- arm64 and x86-64 are more different than expected (especially exceptions)
-- wasmi in no_std takes some work but definitely possible
-- github actions with arm64 runners is interesting
-- bootloaders are complex
-- capability systems are simpler than traditional access control once you get them
-
-## Files
-
-- `src/` - kernel source (rust)
-- `demos/wasm/` - wasm demo modules
-- `docs/` - technical docs
-- `demo_x86.sh` / `demo_arm64.sh` - run all demos
-- `bench_x86.sh` / `bench_arm64.sh` - run benchmarks
-
-## References
-
-- seL4 whitepaper for capability design
-- osdev wiki for hardware specs
-- phil-opp's blog for rust os dev basics
-- wasmi docs for wasm integration

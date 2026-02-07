@@ -1,7 +1,6 @@
 [package]
 name = "jericho_os"
 version = "0.1.0"
-authors = ["Your Name <your.email@example.com>"]
 edition = "2021"
 
 [profile.dev]
