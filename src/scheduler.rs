@@ -1,6 +1,5 @@
-// task scheduler - round robin preemptive
-//
-// TODO: this could be way more efficient with a better data structure
+// round robin scheduler
+// yeah it's not the most efficient, could use a better queue structure
 
 use crate::task::{Task, TaskId, TaskList, TaskState, TaskContext};
 use alloc::collections::VecDeque;
@@ -164,6 +163,36 @@ pub fn init() {
     serial_println!("[SCHED] Scheduler initialized");
 }
 
+/// Get a snapshot of the current task's CSpace
+///
+/// Returns a cloned CSpace for the currently running task.
+/// This allows capability checks without holding the scheduler lock.
+///
+/// # Assumptions
+/// - INTERRUPTS: May be enabled (brief lock acquisition)
+/// - LOCKS: No locks held by caller
+/// - TRUST: Kernel-only (returns task's security context)
+///
+/// # Note
+/// The returned CSpace is a snapshot. If capabilities are revoked
+/// after this call, the snapshot will not reflect those changes.
+pub fn current_task_cspace() -> Option<crate::capability::CSpace> {
+    let guard = SCHEDULER.lock();
+    let scheduler = guard.as_ref()?;
+    let current_id = scheduler.current_task()?;
+    let task = scheduler.get_task(current_id)?;
+    Some(task.cspace().clone())
+}
+
+/// Get the current task's ID
+///
+/// # Assumptions
+/// - INTERRUPTS: May be enabled (brief lock acquisition)
+/// - LOCKS: No locks held by caller
+pub fn current_task_id() -> Option<TaskId> {
+    SCHEDULER.lock().as_ref()?.current_task()
+}
+
 /// Context switch between tasks
 ///
 /// Saves current task's registers to old_context,
@@ -259,24 +288,22 @@ pub unsafe fn switch_context(old_context: &mut TaskContext, new_context: &TaskCo
 /// This function never returns. It either runs the task forever or terminates it.
 #[unsafe(naked)]
 pub extern "C" fn task_entry_wrapper() -> ! {
-    unsafe {
-        core::arch::naked_asm!(
-            // RDI contains the entry point address (set up by Task::new)
-            // Call the task's entry point
-            "call rdi",
+    core::arch::naked_asm!(
+        // RDI contains the entry point address (set up by Task::new)
+        // Call the task's entry point
+        "call rdi",
 
-            // If we reach here, task returned (shouldn't happen for fn() -> !)
-            // Terminate the task
-            "call {terminate_task}",
+        // If we reach here, task returned (shouldn't happen for fn() -> !)
+        // Terminate the task
+        "call {terminate_task}",
 
-            // Should never reach here
-            "2:",
-            "hlt",
-            "jmp 2b",
+        // Should never reach here
+        "2:",
+        "hlt",
+        "jmp 2b",
 
-            terminate_task = sym terminate_current_task,
-        )
-    }
+        terminate_task = sym terminate_current_task,
+    )
 }
 
 /// Terminate the current task
@@ -300,42 +327,103 @@ extern "C" fn terminate_current_task() -> ! {
 ///
 /// This function saves the current task's context and switches to the next ready task.
 ///
-/// Optimized to minimize lock contention - only acquires scheduler lock once.
+/// # Interrupt Safety
+/// Interrupts are disabled for the duration of scheduling and context switch to prevent:
+/// 1. Deadlock from nested task_yield() via timer interrupt
+/// 2. Task list mutation between pointer extraction and use
+///
+/// The switched-to task will have its own interrupt state restored from its saved RFLAGS.
+/// When this task resumes, interrupts are re-enabled if they were enabled on entry.
 pub fn task_yield() {
-    // Get task IDs and context pointers in a single critical section
-    let (old_task_id, new_task_id, old_ctx_ptr, new_ctx_ptr) = {
-        let mut scheduler = SCHEDULER.lock();
-        let scheduler = scheduler.as_mut().expect("Scheduler not initialized");
+    use x86_64::instructions::interrupts;
 
-        let old_id = scheduler.current_task()
-            .expect("No current task to yield from");
+    // === PHASE 1: Disable interrupts ===
+    // Record current state to restore later (handles nested interrupt contexts)
+    let interrupts_enabled = interrupts::are_enabled();
+    interrupts::disable();
+
+    // === PHASE 2: Schedule under lock (interrupts disabled) ===
+    let switch_info: Option<(*mut TaskContext, *const TaskContext)> = {
+        let mut guard = SCHEDULER.lock();
+        let scheduler = match guard.as_mut() {
+            Some(s) => s,
+            None => {
+                // Scheduler not initialized - restore and return
+                if interrupts_enabled {
+                    interrupts::enable();
+                }
+                return;
+            }
+        };
+
+        // Get current task
+        let old_id = match scheduler.current_task() {
+            Some(id) => id,
+            None => {
+                if interrupts_enabled {
+                    interrupts::enable();
+                }
+                return;
+            }
+        };
 
         // Schedule next task
-        let new_id = scheduler.schedule()
-            .expect("No tasks to schedule");
+        let new_id = match scheduler.schedule() {
+            Some(id) => id,
+            None => {
+                if interrupts_enabled {
+                    interrupts::enable();
+                }
+                return;
+            }
+        };
 
+        // Same task - no switch needed
         if old_id == new_id {
-            // Same task, no need to switch
+            if interrupts_enabled {
+                interrupts::enable();
+            }
             return;
         }
 
-        // Get context pointers while we have the lock
-        let old_task = scheduler.get_task_mut(old_id).unwrap();
-        let old_ptr = old_task.context_mut() as *mut TaskContext;
+        // Extract context pointers while holding lock
+        // SAFETY: Pointers are valid because:
+        // 1. Lock is held, preventing concurrent mutation
+        // 2. Interrupts disabled, preventing same-core preemption
+        let old_ctx_ptr = scheduler
+            .get_task_mut(old_id)
+            .unwrap()
+            .context_mut() as *mut TaskContext;
 
-        let new_task = scheduler.get_task(new_id).unwrap();
-        let new_ptr = new_task.context() as *const TaskContext;
+        let new_ctx_ptr = scheduler
+            .get_task(new_id)
+            .unwrap()
+            .context() as *const TaskContext;
 
-        (old_id, new_id, old_ptr, new_ptr)
-    }; // Lock dropped here - critical section complete
-
-    // Perform context switch without holding any locks
-    unsafe {
-        // Verbose logging removed for performance - only in debug builds
         #[cfg(debug_assertions)]
         serial_println!("[SCHED] Switching from task {} to task {}",
-            old_task_id.value(), new_task_id.value());
+            old_id.value(), new_id.value());
 
-        switch_context(&mut *old_ctx_ptr, &*new_ctx_ptr);
+        Some((old_ctx_ptr, new_ctx_ptr))
+    }; // Lock released here
+
+    // === PHASE 3: Context switch (interrupts still disabled) ===
+    // SAFETY: Pointers remain valid because:
+    // - Interrupts disabled: no timer, no nested task_yield
+    // - Single-core: no concurrent execution possible
+    // - Lock released: OK because nothing can run to mutate task list
+    if let Some((old_ctx_ptr, new_ctx_ptr)) = switch_info {
+        unsafe {
+            switch_context(&mut *old_ctx_ptr, &*new_ctx_ptr);
+        }
+        // === PHASE 4: Resumed after being switched back ===
+        // We arrive here when another task switches back to us.
+        // Our saved RFLAGS (with IF=0) was restored, so interrupts are still disabled.
+    }
+
+    // === PHASE 5: Restore interrupt state ===
+    // Re-enable only if they were enabled when we entered
+    if interrupts_enabled {
+        interrupts::enable();
     }
 }

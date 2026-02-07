@@ -10,14 +10,13 @@
 #![feature(abi_x86_interrupt)] // Required for interrupt handlers
 #![feature(alloc_error_handler)] // Required for heap allocation
 
-extern crate alloc;  // Enable heap allocation
+extern crate alloc;
 
 use core::panic::PanicInfo;
 use bootloader_api::{entry_point, BootInfo};
+#[allow(unused_imports)]
 use alloc::{boxed::Box, vec::Vec};
 
-#[macro_use]
-mod vga_buffer;
 #[macro_use]
 mod serial;
 mod gdt;
@@ -431,29 +430,6 @@ fn test_wasm_execution() {
     serial_println!("[TEST] WebAssembly execution tests complete");
 }
 
-/// Test task 1 - prints message and yields
-fn task1_main() -> ! {
-    for i in 0..5 {
-        serial_println!("[TASK1] Iteration {}", i);
-        scheduler::task_yield();  // Yield to other tasks
-    }
-    serial_println!("[TASK1] Completed");
-    loop {
-        scheduler::task_yield();  // Keep yielding when done
-    }
-}
-
-/// Test task 2 - prints message and yields
-fn task2_main() -> ! {
-    for i in 0..5 {
-        serial_println!("[TASK2] Iteration {}", i);
-        scheduler::task_yield();  // Yield to other tasks
-    }
-    serial_println!("[TASK2] Completed");
-    loop {
-        scheduler::task_yield();  // Keep yielding when done
-    }
-}
 
 /// Test task 3 - prints message and yields
 fn task3_main() -> ! {
@@ -468,6 +444,9 @@ fn task3_main() -> ! {
 }
 
 /// Test IPC sender task - sends messages to receiver
+///
+/// # Assumptions
+/// - TRUST: Task has been granted capability 1 (WRITE to endpoint 100)
 fn ipc_sender_main() -> ! {
     use alloc::vec;
     use capability::CapabilityId;
@@ -479,22 +458,21 @@ fn ipc_sender_main() -> ! {
 
     serial_println!("[IPC_SENDER] Starting message transmission");
 
-    // Get current task ID for sending
-    let sender_id = scheduler::SCHEDULER.lock()
-        .as_ref()
-        .unwrap()
-        .current_task()
-        .unwrap();
+    // Get current task ID and CSpace snapshot
+    let sender_id = scheduler::current_task_id()
+        .expect("No current task");
+    let sender_cspace = scheduler::current_task_cspace()
+        .expect("No CSpace for current task");
 
-    // Use capability ID 100 for IPC endpoint
-    let endpoint_cap = CapabilityId::new(100);
+    // Use capability ID 1 (granted at task setup with WRITE rights to endpoint 100)
+    let endpoint_cap = CapabilityId::new(1);
 
     // Send 3 messages
     for i in 0..3 {
         let message_data = vec![b'A' + i, b'0' + i, 0];  // Simple message
         serial_println!("[IPC_SENDER] Sending message {}", i);
 
-        match ipc::send_message(sender_id, endpoint_cap, message_data) {
+        match ipc::send_message(sender_id, &sender_cspace, endpoint_cap, message_data) {
             Ok(()) => serial_println!("[IPC_SENDER] Message {} sent successfully", i),
             Err(e) => serial_println!("[IPC_SENDER] Failed to send message {}: {:?}", i, e),
         }
@@ -510,27 +488,32 @@ fn ipc_sender_main() -> ! {
 }
 
 /// Test IPC receiver task - receives messages from sender
+///
+/// # Assumptions
+/// - TRUST: Task has been granted capability 1 (READ to endpoint 100)
 fn ipc_receiver_main() -> ! {
     use capability::CapabilityId;
 
     serial_println!("[IPC_RECEIVER] Starting, creating endpoint");
 
-    // Get current task ID
-    let receiver_id = scheduler::SCHEDULER.lock()
-        .as_ref()
-        .unwrap()
-        .current_task()
-        .unwrap();
+    // Get current task ID and CSpace snapshot
+    let receiver_id = scheduler::current_task_id()
+        .expect("No current task");
+    let receiver_cspace = scheduler::current_task_cspace()
+        .expect("No CSpace for current task");
 
-    // Create IPC endpoint with capability ID 100
-    let endpoint_cap = CapabilityId::new(100);
-    match ipc::create_endpoint(endpoint_cap) {
+    // Create IPC endpoint with ID 100 (the resource ID)
+    let endpoint_id = CapabilityId::new(100);
+    match ipc::create_endpoint(endpoint_id) {
         Ok(_) => serial_println!("[IPC_RECEIVER] Endpoint created successfully"),
         Err(e) => {
             serial_println!("[IPC_RECEIVER] Failed to create endpoint: {:?}", e);
             loop { scheduler::task_yield(); }
         }
     }
+
+    // Use capability ID 1 (granted at task setup with READ rights to endpoint 100)
+    let endpoint_cap = CapabilityId::new(1);
 
     serial_println!("[IPC_RECEIVER] Waiting for messages...");
 
@@ -539,7 +522,7 @@ fn ipc_receiver_main() -> ! {
     while received < 3 {
         serial_println!("[IPC_RECEIVER] Attempting to receive message {}...", received);
 
-        match ipc::try_receive_message(receiver_id, endpoint_cap) {
+        match ipc::try_receive_message(receiver_id, &receiver_cspace, endpoint_cap) {
             Ok(Some(msg)) => {
                 serial_println!("[IPC_RECEIVER] Received message from task {}: {:?}",
                     msg.sender.value(), msg.data);
@@ -597,17 +580,20 @@ fn benchmark_task() -> ! {
         scheduler::task_yield();
     }
 
-    // Collect and print final benchmark results
-    serial_println!("");
-    serial_println!("[BENCH] Collecting final benchmark results...");
+    // benchmarks only work on x86 right now (needs timer)
+    #[cfg(target_arch = "x86_64")]
+    {
+        serial_println!("");
+        serial_println!("[BENCH] Collecting final benchmark results...");
 
-    // Get boot cycles from global variable
-    let boot_cycles = BOOT_CYCLES.load(core::sync::atomic::Ordering::Relaxed);
-    let results = benchmark::collect_results(boot_cycles);
-    results.print();
+        // Get boot cycles from global variable
+        let boot_cycles = BOOT_CYCLES.load(core::sync::atomic::Ordering::Relaxed);
+        let results = benchmark::collect_results(boot_cycles);
+        results.print();
 
-    // Also print memory footprint
-    benchmark::estimate_memory_footprint();
+        // Also print memory footprint
+        benchmark::estimate_memory_footprint();
+    }
 
     serial_println!("");
     serial_println!("[BENCH] Benchmark complete - system continues running");
@@ -621,15 +607,39 @@ fn benchmark_task() -> ! {
 /// Test the task scheduler
 fn test_scheduler() {
     use task::{Task, Priority, TaskContext};
+    use capability::{Capability, CapabilityId, ResourceType, Rights};
 
     serial_println!("[TEST] Testing multitasking with IPC...");
 
     // Create tasks: IPC test + benchmark task
     serial_println!("[TEST] Creating tasks (IPC + benchmarks)...");
-    let receiver = Task::new("ipc_receiver", ipc_receiver_main, Priority::Normal);
-    let sender = Task::new("ipc_sender", ipc_sender_main, Priority::Normal);
+    let mut receiver = Task::new("ipc_receiver", ipc_receiver_main, Priority::Normal);
+    let mut sender = Task::new("ipc_sender", ipc_sender_main, Priority::Normal);
     let bencher = Task::new("benchmark", benchmark_task, Priority::Normal);
     let task3 = Task::new("task3", task3_main, Priority::Normal);
+
+    // Grant capabilities to IPC tasks BEFORE adding to scheduler
+    // Endpoint resource ID is 100, capability ID in each task's CSpace is 1
+    //
+    // Receiver: READ rights to receive messages
+    let receiver_cap = Capability::new(
+        CapabilityId::new(1),           // Cap ID in receiver's CSpace
+        ResourceType::Endpoint,
+        100,                             // Endpoint resource ID
+        Rights::READ,                    // READ rights for receiving
+    );
+    receiver.cspace_mut().insert(receiver_cap);
+    serial_println!("[TEST] Granted READ capability to receiver for endpoint 100");
+
+    // Sender: WRITE rights to send messages
+    let sender_cap = Capability::new(
+        CapabilityId::new(1),           // Cap ID in sender's CSpace
+        ResourceType::Endpoint,
+        100,                             // Endpoint resource ID
+        Rights { read: false, write: true, execute: false, grant: false },
+    );
+    sender.cspace_mut().insert(sender_cap);
+    serial_println!("[TEST] Granted WRITE capability to sender for endpoint 100");
 
     {
         let mut sched = scheduler::SCHEDULER.lock();

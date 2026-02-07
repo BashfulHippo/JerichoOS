@@ -5,8 +5,8 @@
 use bootloader_api::info::{MemoryRegions, MemoryRegionKind};
 use x86_64::{
     structures::paging::{
-        FrameAllocator, Mapper, OffsetPageTable, Page, PageTable, PhysFrame, Size4KiB,
-        mapper::MapToError, FrameDeallocator,
+        FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB,
+        FrameDeallocator,
     },
     PhysAddr, VirtAddr,
 };

@@ -3,8 +3,6 @@
 //! Measures performance metrics for comparison with traditional systems
 //! Architecture-aware: supports x86-64 TSC and ARM64 generic timer
 
-#[cfg(target_arch = "x86_64")]
-use crate::interrupts::timer_ticks;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 /// Read high-precision cycle counter (architecture-specific)
@@ -110,6 +108,8 @@ impl BenchmarkResults {
 /// Collect current benchmark results (x86-64 only)
 #[cfg(target_arch = "x86_64")]
 pub fn collect_results(boot_cycles: u64) -> BenchmarkResults {
+    use crate::interrupts::timer_ticks;  // x86 only, moved here to fix arm build
+
     let boot_time_us = cycles_to_us(boot_cycles);
 
     let (switches, _total_cycles, avg_cycles) = get_context_switch_stats();
@@ -133,13 +133,15 @@ pub fn collect_results(boot_cycles: u64) -> BenchmarkResults {
 /// Performs N context switches and measures average time
 #[cfg(target_arch = "x86_64")]
 pub fn benchmark_context_switches(iterations: u64) -> u64 {
+    use crate::scheduler::task_yield;  // x86 only
+
     serial_println!("[BENCH] Running context switch benchmark ({} iterations)...", iterations);
 
     let start = rdtsc();
 
     // Yield N times to trigger context switches
     for _ in 0..iterations {
-        crate::scheduler::task_yield();
+        task_yield();
     }
 
     let end = rdtsc();

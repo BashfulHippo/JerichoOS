@@ -4,6 +4,7 @@
 /// These tests MUST pass on x86-64 and ARM64 for feature parity.
 
 use crate::wasm_runtime::WasmModule;
+#[allow(unused_imports)]
 use crate::{serial_print, serial_println};
 use wasmi::Value;
 

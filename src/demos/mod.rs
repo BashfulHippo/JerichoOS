@@ -1,6 +1,4 @@
-/// JerichoOS WASM Demo Module
-///
-/// Provides canonical test suite for validating WASM runtime functionality
+// wasm demo suite
 
 mod wasm_tests;
 

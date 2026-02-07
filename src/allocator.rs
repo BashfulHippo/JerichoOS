@@ -2,8 +2,6 @@
 //!
 //! Provides dynamic memory allocation using a linked list allocator
 
-use alloc::alloc::{GlobalAlloc, Layout};
-use core::ptr::null_mut;
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
