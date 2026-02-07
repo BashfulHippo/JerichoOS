@@ -5,7 +5,6 @@
 use crate::capability::CSpace;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use x86_64::VirtAddr;
 
 /// Unique task identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

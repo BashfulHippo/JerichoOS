@@ -1,11 +1,9 @@
-//! Inter-Process Communication (IPC) for JerichoOS
-//!
-//! Provides capability-based message passing between tasks
+// ipc - message passing with capability checks
 
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 use spin::Mutex;
-use crate::capability::{CapabilityId, Rights};
+use crate::capability::{CapabilityId, CSpace, ResourceType};
 use crate::task::TaskId;
 
 /// Maximum message size in bytes
@@ -197,27 +195,43 @@ pub fn create_endpoint(cap_id: CapabilityId) -> Result<CapabilityId, IpcError> {
     Ok(registry.create_endpoint(cap_id))
 }
 
-/// Send a message through an endpoint (requires WRITE rights)
+// send message to endpoint - checks capability write permission
 pub fn send_message(
     sender: TaskId,
+    sender_cspace: &CSpace,
     endpoint_cap: CapabilityId,
     data: Vec<u8>,
 ) -> Result<(), IpcError> {
-    // TODO: Check sender has WRITE rights to endpoint_cap
+    // verify caller has the capability they claim
+    let cap = sender_cspace
+        .get(endpoint_cap)
+        .ok_or(IpcError::PermissionDenied)?;
 
-    let message = Message::new(sender, data)?;
+    // make sure it's actually an endpoint capability
+    if cap.resource_type() != ResourceType::Endpoint {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    // need write permission to send
+    if !cap.rights().write {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    let target_endpoint_id = CapabilityId::new(cap.resource_id());
 
     let mut registry = IPC_REGISTRY.lock();
     let registry = registry.as_mut().ok_or(IpcError::EndpointNotFound)?;
 
-    let endpoint = registry.get_endpoint_mut(endpoint_cap)
+    let endpoint = registry.get_endpoint_mut(target_endpoint_id)
         .ok_or(IpcError::EndpointNotFound)?;
+
+    let message = Message::new(sender, data)?;
 
     endpoint.send(message)?;
 
     // Wake up any waiting tasks
     let waiters = endpoint.take_waiters();
-    drop(registry);  // Drop lock before scheduler operations
+    let _ = registry;  // done with registry, drop it before touching scheduler
 
     for task_id in waiters {
         crate::scheduler::SCHEDULER.lock()
@@ -229,18 +243,31 @@ pub fn send_message(
     Ok(())
 }
 
-/// Receive a message from an endpoint (requires READ rights)
-/// Returns None if no message available (non-blocking)
+// try to receive message (non-blocking) - checks read permission
 pub fn try_receive_message(
-    receiver: TaskId,
+    _receiver: TaskId,
+    receiver_cspace: &CSpace,
     endpoint_cap: CapabilityId,
 ) -> Result<Option<Message>, IpcError> {
-    // TODO: Check receiver has READ rights to endpoint_cap
+    let cap = receiver_cspace
+        .get(endpoint_cap)
+        .ok_or(IpcError::PermissionDenied)?;
+
+    if cap.resource_type() != ResourceType::Endpoint {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    // need read permission to receive
+    if !cap.rights().read {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    let target_endpoint_id = CapabilityId::new(cap.resource_id());
 
     let mut registry = IPC_REGISTRY.lock();
     let registry = registry.as_mut().ok_or(IpcError::EndpointNotFound)?;
 
-    let endpoint = registry.get_endpoint_mut(endpoint_cap)
+    let endpoint = registry.get_endpoint_mut(target_endpoint_id)
         .ok_or(IpcError::EndpointNotFound)?;
 
     Ok(endpoint.try_receive())
@@ -248,13 +275,33 @@ pub fn try_receive_message(
 
 /// Receive a message from an endpoint (blocking)
 /// Blocks current task until a message arrives
+///
+/// # Security
+/// - Same capability checks as try_receive_message
+/// - Capability verified on each wake-up (handles revocation)
 pub fn receive_message_blocking(
     receiver: TaskId,
+    receiver_cspace: &CSpace,
     endpoint_cap: CapabilityId,
 ) -> Result<Message, IpcError> {
+    // Perform capability check once upfront to fail fast
+    let cap = receiver_cspace
+        .get(endpoint_cap)
+        .ok_or(IpcError::PermissionDenied)?;
+
+    if cap.resource_type() != ResourceType::Endpoint {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    if !cap.rights().read {
+        return Err(IpcError::PermissionDenied);
+    }
+
+    let target_endpoint_id = CapabilityId::new(cap.resource_id());
+
     loop {
-        // Try to receive non-blocking first
-        match try_receive_message(receiver, endpoint_cap)? {
+        // Try to receive non-blocking first (re-verify cap each iteration)
+        match try_receive_message(receiver, receiver_cspace, endpoint_cap)? {
             Some(msg) => return Ok(msg),
             None => {
                 // No message available, register as waiter and block
@@ -262,7 +309,7 @@ pub fn receive_message_blocking(
                     let mut registry = IPC_REGISTRY.lock();
                     let registry = registry.as_mut().ok_or(IpcError::EndpointNotFound)?;
 
-                    let endpoint = registry.get_endpoint_mut(endpoint_cap)
+                    let endpoint = registry.get_endpoint_mut(target_endpoint_id)
                         .ok_or(IpcError::EndpointNotFound)?;
 
                     endpoint.add_waiter(receiver);
@@ -277,7 +324,7 @@ pub fn receive_message_blocking(
                     .unwrap()
                     .block_current();
 
-                // When we wake up, try again
+                // When we wake up, capability is re-verified by try_receive_message
             }
         }
     }

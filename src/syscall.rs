@@ -3,7 +3,7 @@
 //! Provides the interface between user code and kernel services
 //! All operations on capabilities go through syscalls
 
-use crate::capability::{CapabilityId, Rights, ResourceType, CSpace};
+use crate::capability::{CapabilityId, Rights, CSpace};
 
 /// Syscall numbers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,28 +89,21 @@ impl SyscallContext {
     }
 
     /// Create a new capability
-    /// arg1: resource_type (as u64)
-    /// arg2: resource_id
-    /// arg3: rights (encoded as bitflags)
-    fn sys_cap_create(&mut self, resource_type: u64, resource_id: u64, rights_bits: u64) -> SyscallResult {
-        let resource_type = match resource_type {
-            0 => ResourceType::Memory,
-            1 => ResourceType::Interrupt,
-            2 => ResourceType::Thread,
-            3 => ResourceType::Endpoint,
-            4 => ResourceType::WasmModule,
-            _ => return SyscallResult::Error(SyscallError::InvalidArgument),
-        };
-
-        let rights = Rights {
-            read: (rights_bits & 0x1) != 0,
-            write: (rights_bits & 0x2) != 0,
-            execute: (rights_bits & 0x4) != 0,
-            grant: (rights_bits & 0x8) != 0,
-        };
-
-        let cap_id = self.cspace.create(resource_type, resource_id, rights);
-        SyscallResult::Success(cap_id.value())
+    ///
+    /// # Security
+    /// DENIED: User tasks cannot create capabilities directly.
+    /// Capabilities must be received via delegation from kernel or parent task.
+    /// This prevents capability forgery attacks where a malicious task could
+    /// create arbitrary capabilities to resources it shouldn't access.
+    ///
+    /// To obtain capabilities, tasks must:
+    /// 1. Receive them from kernel during task creation
+    /// 2. Receive them via IPC capability transfer from authorized task
+    /// 3. Derive reduced-rights capabilities from existing ones (sys_cap_derive)
+    fn sys_cap_create(&mut self, _resource_type: u64, _resource_id: u64, _rights_bits: u64) -> SyscallResult {
+        // SECURITY: Unconditionally deny capability creation from user space
+        // This is the only safe default - capabilities must be delegated, not forged
+        SyscallResult::Error(SyscallError::PermissionDenied)
     }
 
     /// Derive a capability with reduced rights

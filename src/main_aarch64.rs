@@ -317,8 +317,8 @@ pub extern "C" fn kernel_main(_dtb_ptr: usize) -> ! {
     }
 
     // PHASE 3: Test capability with spin::Once + BTreeMap
-    // NOTE: Historical SIMD concern resolved - capability init works without NEON disable
-    // (See docs/PATHWAY_D_SIMD_CAPABILITY.md for investigation details)
+    // NOTE: Historical SIMD concern resolved - capability init works without NEON disable.
+    // Keep this as a regression checkpoint during future ARM bring-up changes.
     uart_puts("[TEST] Phase 3: Testing capability with spin::Once...\n");
     capability::init();
     uart_puts("[ OK ] Capability::init() SUCCESS with spin::Once!\n");
