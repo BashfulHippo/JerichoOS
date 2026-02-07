@@ -8,11 +8,16 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    // Only run this build script when building for x86-64
+    // Only run bootloader creation for x86-64 AND when bootloader feature is enabled
     let target = env::var("TARGET").unwrap();
     if !target.starts_with("x86_64") {
         // Skip for ARM64 builds - no bootloader needed
-        println!("cargo:warning=Skipping bootloader for non-x86_64 target: {}", target);
+        return;
+    }
+
+    // Check if bootloader feature is enabled
+    #[cfg(not(feature = "bootloader-build"))]
+    {
         return;
     }
 
@@ -62,48 +67,49 @@ fn main() {
     let uefi_image_path = out_dir.join("boot-uefi.img");
 
     // Create bootable disk image using bootloader 0.11 builder API
-    #[cfg(not(target_arch = "aarch64"))]
-    let builder = bootloader::DiskImageBuilder::new(kernel_path.clone());
-
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(feature = "bootloader-build")]
     {
-        println!("cargo:warning=Bootloader not available for ARM64");
-        return;
+        let builder = bootloader::DiskImageBuilder::new(kernel_path.clone());
+
+        // Note: bootloader 0.11 doesn't have set_ramdisk or set_kernel_args methods
+        // Configuration is done via bootloader_api's entry_point! macro in src/main.rs
+
+        // Try UEFI boot first (recommended for bootloader 0.11)
+        match builder.create_uefi_image(&uefi_image_path) {
+            Ok(()) => {
+                println!("cargo:warning=UEFI bootable disk image created: {}", uefi_image_path.display());
+                println!("cargo:warning=Image size: {} bytes", std::fs::metadata(&uefi_image_path).unwrap().len());
+                println!("cargo:warning=Use OVMF firmware to boot UEFI image");
+
+                // Tell cargo to re-run this build script if the kernel changes
+                println!("cargo:rerun-if-changed={}", kernel_path.display());
+            }
+            Err(e) => {
+                println!("cargo:warning=Failed to create UEFI boot image: {}", e);
+            }
+        }
+
+        // Also try BIOS boot as fallback
+        match builder.create_bios_image(&bios_image_path) {
+            Ok(()) => {
+                println!("cargo:warning=BIOS bootable disk image created: {}", bios_image_path.display());
+                println!("cargo:warning=Image size: {} bytes", std::fs::metadata(&bios_image_path).unwrap().len());
+
+                // Tell cargo to re-run this build script if the kernel changes
+                println!("cargo:rerun-if-changed={}", kernel_path.display());
+            }
+            Err(e) => {
+                println!("cargo:warning=Failed to create BIOS boot image: {}", e);
+                println!("cargo:warning=This is non-fatal - kernel binary still usable with manual bootloader");
+            }
+        }
+
+        // Also tell cargo to re-run if this build script changes
+        println!("cargo:rerun-if-changed=build.rs");
     }
 
-    // Note: bootloader 0.11 doesn't have set_ramdisk or set_kernel_args methods
-    // Configuration is done via bootloader_api's entry_point! macro in src/main.rs
-
-    // Try UEFI boot first (recommended for bootloader 0.11)
-    match builder.create_uefi_image(&uefi_image_path) {
-        Ok(()) => {
-            println!("cargo:warning=✅ UEFI bootable disk image created: {}", uefi_image_path.display());
-            println!("cargo:warning=Image size: {} bytes", std::fs::metadata(&uefi_image_path).unwrap().len());
-            println!("cargo:warning=Use OVMF firmware to boot UEFI image");
-
-            // Tell cargo to re-run this build script if the kernel changes
-            println!("cargo:rerun-if-changed={}", kernel_path.display());
-        }
-        Err(e) => {
-            println!("cargo:warning=❌ Failed to create UEFI boot image: {}", e);
-        }
+    #[cfg(not(feature = "bootloader-build"))]
+    {
+        println!("cargo:warning=Bootloader feature not enabled, skipping image creation");
     }
-
-    // Also try BIOS boot as fallback
-    match builder.create_bios_image(&bios_image_path) {
-        Ok(()) => {
-            println!("cargo:warning=✅ BIOS bootable disk image created: {}", bios_image_path.display());
-            println!("cargo:warning=Image size: {} bytes", std::fs::metadata(&bios_image_path).unwrap().len());
-
-            // Tell cargo to re-run this build script if the kernel changes
-            println!("cargo:rerun-if-changed={}", kernel_path.display());
-        }
-        Err(e) => {
-            println!("cargo:warning=❌ Failed to create BIOS boot image: {}", e);
-            println!("cargo:warning=This is non-fatal - kernel binary still usable with manual bootloader");
-        }
-    }
-
-    // Also tell cargo to re-run if this build script changes
-    println!("cargo:rerun-if-changed=build.rs");
 }

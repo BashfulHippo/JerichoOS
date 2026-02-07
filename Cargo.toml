@@ -38,7 +38,11 @@ pc-keyboard = "0.7"
 
 # Build-time dependencies
 [build-dependencies]
-bootloader = "0.11"  # For creating bootable disk images (x86-64 only, but needed for build.rs to compile)
+bootloader = { version = "0.11", optional = true }  # For creating bootable disk images (x86-64 only)
+
+[features]
+default = []
+bootloader-build = ["bootloader"]  # Enable bootloader image creation
 
 [[bin]]
 name = "jericho_os"
