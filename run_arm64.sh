@@ -5,7 +5,7 @@ set -euo pipefail
 
 # Check if kernel exists
 if [ ! -f "target/aarch64/kernel_arm64.bin" ]; then
-    echo "❌ ARM64 kernel not found. Run ./build_arm64.sh first"
+    echo "x ARM64 kernel not found. Run ./build_arm64.sh first"
     exit 1
 fi
 

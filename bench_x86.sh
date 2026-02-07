@@ -12,16 +12,16 @@ echo "╚═══════════════════════�
 echo ""
 
 # Build kernel
-echo "🔨 Building x86-64 kernel..."
+echo "* Building x86-64 kernel..."
 cargo build --bin jericho_os --release 2>&1 | grep -E "(Compiling|Finished)" | tail -5 || true
-echo "✅ Build complete"
+echo "* Build complete"
 echo ""
 
 # Find boot image path
 BOOT_IMAGE=$(find target/x86_64-unknown-none/release/build -name "boot-bios.img" 2>/dev/null | head -1)
 
 if [ -z "$BOOT_IMAGE" ]; then
-    echo "❌ Boot image not found!"
+    echo "x Boot image not found!"
     exit 1
 fi
 
@@ -43,7 +43,7 @@ timeout 15s qemu-system-x86_64 \
 if [ -f /tmp/jericho_raw_bench.txt ] && [ -s /tmp/jericho_raw_bench.txt ]; then
     BENCH_OUTPUT=$(strings /tmp/jericho_raw_bench.txt)
 else
-    echo "❌ No output captured from QEMU"
+    echo "x No output captured from QEMU"
     exit 1
 fi
 
@@ -59,10 +59,10 @@ if echo "$BENCH_OUTPUT" | grep -q "Syscall latency:"; then
     echo "📞 Syscall Latency: $SYSCALL"
 
     # Check pass criteria
-    if echo "$BENCH_OUTPUT" | grep "Syscall < 1µs:" | grep -q "✅ PASS"; then
-        echo "   ✅ Target < 1µs: PASS"
+    if echo "$BENCH_OUTPUT" | grep "Syscall < 1µs:" | grep -q "* PASS"; then
+        echo "   * Target < 1µs: PASS"
     else
-        echo "   ⚠️  Target < 1µs: WARN"
+        echo "   !  Target < 1µs: WARN"
     fi
 else
     echo "📞 Syscall Latency: Not measured"
@@ -91,10 +91,10 @@ if echo "$BENCH_OUTPUT" | grep -q "Context switch:"; then
     CTX_SWITCH=$(echo "$BENCH_OUTPUT" | grep "Context switch:" | head -1 | sed 's/.*Context switch: *//' | sed 's/ .*//')
     echo "⚡ Context Switch: $CTX_SWITCH"
 
-    if echo "$BENCH_OUTPUT" | grep "Switch < 5µs:" | grep -q "✅ PASS"; then
-        echo "   ✅ Target < 5µs: PASS"
+    if echo "$BENCH_OUTPUT" | grep "Switch < 5µs:" | grep -q "* PASS"; then
+        echo "   * Target < 5µs: PASS"
     else
-        echo "   ⚠️  Target < 5µs: WARN"
+        echo "   !  Target < 5µs: WARN"
     fi
 else
     echo "⚡ Context Switch: No data (scheduler not active during benchmark)"
@@ -131,4 +131,4 @@ echo "📄 Processed output saved to: /tmp/jericho_x86_bench.txt"
 echo "📄 Raw output saved to: /tmp/jericho_raw_bench.txt"
 echo ""
 
-echo "✅ Benchmark run complete!"
+echo "* Benchmark run complete!"

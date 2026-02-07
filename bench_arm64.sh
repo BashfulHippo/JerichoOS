@@ -11,9 +11,9 @@ echo "╚═══════════════════════�
 echo ""
 
 # Build kernel
-echo "🔨 Building ARM64 kernel..."
-./build_arm64.sh 2>&1 | grep -E "(Building|✓|✅)" | tail -5 || true
-echo "✅ Build complete"
+echo "* Building ARM64 kernel..."
+./build_arm64.sh 2>&1 | grep -E "(Building|*|*)" | tail -5 || true
+echo "* Build complete"
 echo ""
 
 # Run benchmarks with timeout
@@ -33,30 +33,30 @@ echo ""
 
 # Check if benchmark suite executed
 if echo "$BENCH_OUTPUT" | grep -q "JerichoOS Performance Benchmarks"; then
-    echo "✅ Benchmark suite executed"
+    echo "* Benchmark suite executed"
     echo ""
 
     # Note about ARM64 formatting limitation
-    echo "⚠️  Note: ARM64 UART has limited format support"
+    echo "!  Note: ARM64 UART has limited format support"
     echo "   Numeric values display as {} placeholders in serial output"
     echo "   Benchmarks execute correctly but results not printed"
     echo ""
 
     # Verify execution sequence
     if echo "$BENCH_OUTPUT" | grep -q "Syscall Latency Benchmark"; then
-        echo "✅ Syscall Latency: Benchmark executed"
+        echo "* Syscall Latency: Benchmark executed"
     fi
 
     if echo "$BENCH_OUTPUT" | grep -q "IPC Throughput Benchmark"; then
-        echo "✅ IPC Throughput: Benchmark executed"
+        echo "* IPC Throughput: Benchmark executed"
     fi
 
     if echo "$BENCH_OUTPUT" | grep -q "Context Switch Benchmark"; then
-        echo "✅ Context Switch: Benchmark executed"
+        echo "* Context Switch: Benchmark executed"
     fi
 
     if echo "$BENCH_OUTPUT" | grep -q "Performance Summary"; then
-        echo "✅ Summary: Generated"
+        echo "* Summary: Generated"
     fi
 
     echo ""
@@ -66,13 +66,13 @@ if echo "$BENCH_OUTPUT" | grep -q "JerichoOS Performance Benchmarks"; then
     echo "   • Context switch: Not measured during benchmark phase"
     echo ""
 else
-    echo "⚠️  Benchmark suite did not execute or output not detected"
+    echo "!  Benchmark suite did not execute or output not detected"
     echo ""
 fi
 
 # Verify counter functionality
 if echo "$BENCH_OUTPUT" | grep -q "Benchmark counter working"; then
-    echo "✅ Performance Counter: Validated (CNTVCT_EL0)"
+    echo "* Performance Counter: Validated (CNTVCT_EL0)"
 
     # Extract counter info
     if echo "$BENCH_OUTPUT" | grep -q "Counter frequency:"; then
@@ -81,7 +81,7 @@ if echo "$BENCH_OUTPUT" | grep -q "Benchmark counter working"; then
         echo "   • Resolution: ~16-41 ns per tick"
     fi
 else
-    echo "⚠️  Performance counter not verified"
+    echo "!  Performance counter not verified"
 fi
 
 echo ""
@@ -106,8 +106,8 @@ echo ""
 echo "ARM64 vs x86-64:"
 echo "  • Timer frequency: ~24 MHz vs ~3 GHz (125x coarser)"
 echo "  • Binary size: 4.7 MB vs ~5 MB (comparable)"
-echo "  • Demo suite: 5/5 passing on both platforms ✅"
-echo "  • Benchmark suite: Executes on both platforms ✅"
+echo "  • Demo suite: 5/5 passing on both platforms *"
+echo "  • Benchmark suite: Executes on both platforms *"
 echo ""
 echo "For detailed comparison, see: BENCHMARKS.md and docs/PROJECT_STATUS.md"
 echo ""
@@ -117,7 +117,7 @@ echo "$BENCH_OUTPUT" > /tmp/jericho_arm64_bench.txt
 echo "📄 Full output saved to: /tmp/jericho_arm64_bench.txt"
 echo ""
 
-echo "✅ Benchmark run complete!"
+echo "* Benchmark run complete!"
 echo ""
 echo "💡 To enable numeric output, implement core::fmt::Write for ARM64 UART"
 echo "   (Future enhancement tracked in docs/PROJECT_STATUS.md)"
