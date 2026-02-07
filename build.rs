@@ -11,7 +11,8 @@ fn main() {
     // Only run this build script when building for x86-64
     let target = env::var("TARGET").unwrap();
     if !target.starts_with("x86_64") {
-        // Skip for ARM64 builds
+        // Skip for ARM64 builds - no bootloader needed
+        println!("cargo:warning=Skipping bootloader for non-x86_64 target: {}", target);
         return;
     }
 
@@ -61,7 +62,14 @@ fn main() {
     let uefi_image_path = out_dir.join("boot-uefi.img");
 
     // Create bootable disk image using bootloader 0.11 builder API
+    #[cfg(not(target_arch = "aarch64"))]
     let builder = bootloader::DiskImageBuilder::new(kernel_path.clone());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        println!("cargo:warning=Bootloader not available for ARM64");
+        return;
+    }
 
     // Note: bootloader 0.11 doesn't have set_ramdisk or set_kernel_args methods
     // Configuration is done via bootloader_api's entry_point! macro in src/main.rs

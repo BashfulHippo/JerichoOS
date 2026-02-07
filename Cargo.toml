@@ -36,9 +36,9 @@ pc-keyboard = "0.7"
 # ARM64 specific dependencies (none yet, but reserved for future)
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 
-# x86-64 build-time dependencies
-[target.'cfg(target_arch = "x86_64")'.build-dependencies]
-bootloader = "0.11"  # For creating bootable disk images at build time
+# Build-time dependencies
+[build-dependencies]
+bootloader = "0.11"  # For creating bootable disk images (x86-64 only, but needed for build.rs to compile)
 
 [[bin]]
 name = "jericho_os"
