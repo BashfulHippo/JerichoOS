@@ -1,4 +1,14 @@
-/target
+/target/
+**/target/
+
 *.bin
 *.iso
-Cargo.lock
+*.log
+
+*.old
+*.old_*
+*_backup*
+NUL
+
+.DS_Store
+Thumbs.db
