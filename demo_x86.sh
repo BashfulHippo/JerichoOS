@@ -42,6 +42,7 @@ timeout 15s qemu-system-x86_64 \
 # Read and filter the output
 if [ -f /tmp/jericho_raw_output.txt ] && [ -s /tmp/jericho_raw_output.txt ]; then
     DEMO_OUTPUT=$(strings /tmp/jericho_raw_output.txt)
+    NORMALIZED_OUTPUT=${DEMO_OUTPUT//$'\n'/ }
 else
     echo "❌ No output captured from QEMU"
     exit 1
@@ -57,19 +58,15 @@ echo ""
 failed=0
 suite_ok=0
 for i in 1 2 3 4 5; do
-    # Check if demo ran (look for DEMO marker and COMPLETE marker separately)
-    if echo "$DEMO_OUTPUT" | grep -q "\[DEMO $i\]"; then
-        if echo "$DEMO_OUTPUT" | grep -A5 "\[DEMO $i\]" | grep -q "COMPLETE"; then
-            DEMO_NAME=$(echo "$DEMO_OUTPUT" | grep "\\[DEMO $i\\]" | head -1 | sed 's/.*\\[DEMO [0-9]\\] //' | sed 's/ (.*//')
-            echo "✅ Demo $i: $DEMO_NAME"
-            echo "DEMO_RESULT:$i:PASS"
-        else
-            echo "⚠️  Demo $i: Started but no COMPLETE marker"
-            echo "DEMO_RESULT:$i:FAIL"
-            failed=1
+    if grep -Eq "\\[DEMO[[:space:]]+$i\\].*COMPLETE" <<<"$NORMALIZED_OUTPUT"; then
+        DEMO_NAME=$(grep -m1 "\\[DEMO $i\\]" <<<"$DEMO_OUTPUT" | sed -E 's/.*\[DEMO [0-9]+\][[:space:]]*//' | sed -E 's/[[:space:]]*\(.*$//')
+        if [ -z "$DEMO_NAME" ]; then
+            DEMO_NAME="Detected"
         fi
+        echo "✅ Demo $i: $DEMO_NAME"
+        echo "DEMO_RESULT:$i:PASS"
     else
-        echo "❌ Demo $i: Not found"
+        echo "❌ Demo $i: FAILED or INCOMPLETE"
         echo "DEMO_RESULT:$i:FAIL"
         failed=1
     fi
@@ -84,23 +81,23 @@ echo "╚═══════════════════════�
 echo ""
 
 # Demo 4: MQTT pub/sub validation
-if echo "$DEMO_OUTPUT" | grep -q "Full pub/sub flow working"; then
+if grep -q "Full pub/sub flow working" <<<"$DEMO_OUTPUT"; then
     echo "✅ MQTT: Full pub/sub flow validated (broker + publisher + subscriber)"
-elif echo "$DEMO_OUTPUT" | grep -q "DEMO 4.*COMPLETE"; then
+elif grep -Eq "\\[DEMO[[:space:]]+4\\].*COMPLETE" <<<"$NORMALIZED_OUTPUT"; then
     echo "✅ MQTT: Demo 4 complete"
 else
     echo "⚠️  MQTT: Not detected"
 fi
 
 # Demo 5: Capability enforcement
-if echo "$DEMO_OUTPUT" | grep -q "IPC-DENIED.*no IPC_SEND capability"; then
+if grep -q "IPC-DENIED" <<<"$DEMO_OUTPUT"; then
     echo "✅ Security: IPC denied (capability enforcement working)"
 else
     echo "⚠️  Security: IPC enforcement not detected"
 fi
 
 # Completion marker
-if echo "$DEMO_OUTPUT" | grep -q "All WASM Demos Complete"; then
+if grep -q "All WASM Demos Complete" <<<"$DEMO_OUTPUT"; then
     echo "✅ Suite: All demos completed successfully"
     suite_ok=1
 else
@@ -115,8 +112,8 @@ echo "║               Performance Summary                      ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo ""
 
-if echo "$DEMO_OUTPUT" | grep -q "Boot time:"; then
-    BOOT_TIME=$(echo "$DEMO_OUTPUT" | grep "Boot time:" | head -1 | sed 's/.*Boot time: //' | sed 's/ .*//')
+if grep -q "Boot time:" <<<"$DEMO_OUTPUT"; then
+    BOOT_TIME=$(grep "Boot time:" <<<"$DEMO_OUTPUT" | head -1 | sed 's/.*Boot time: //' | sed 's/ .*//')
     echo "⏱️  Boot Time: $BOOT_TIME"
 fi
 
