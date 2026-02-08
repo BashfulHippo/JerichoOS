@@ -102,6 +102,46 @@ fn host_sys_print_u32(_caller: Caller<'_, WasmContext>, _value: u32) {
     serial_print!("<u32>");
 }
 
+// generic syscall handler for 03_syscall.wasm demo
+// syscall(syscall_num, arg1, arg2, arg3) -> result
+fn host_syscall(caller: Caller<'_, WasmContext>, syscall_num: i32, arg1: i32, _arg2: i32, _arg3: i32) -> i32 {
+    match syscall_num {
+        0 => {
+            // SYS_READ - deny access for protected file descriptors
+            serial_println!("[SYSCALL] sys_read invoked");
+            if arg1 == 99 {
+                // protected fd - deny without capability
+                serial_println!("[SYSCALL] Access denied: protected resource");
+                -1
+            } else {
+                serial_println!("[SYSCALL] Read permitted");
+                0
+            }
+        }
+        1 => {
+            // SYS_WRITE
+            serial_println!("[SYSCALL] sys_write invoked");
+            serial_println!("[SYSCALL] Write OK");
+            _arg3 // return bytes "written" (the len argument)
+        }
+        2 => {
+            // SYS_ALLOCATE - requires capability
+            serial_println!("[SYSCALL] sys_allocate invoked");
+            if caller.data().has_capabilities() {
+                serial_println!("[SYSCALL] Allocation granted");
+                0x4000_i32 // return fake allocation address
+            } else {
+                serial_println!("[SYSCALL] Allocation denied: no capability");
+                0 // NULL - no capability
+            }
+        }
+        _ => {
+            serial_println!("[SYSCALL] Unknown syscall");
+            -1
+        }
+    }
+}
+
 /// Host function: MQTT subscribe
 fn host_sys_mqtt_subscribe(
     caller: Caller<'_, WasmContext>,
@@ -362,6 +402,11 @@ impl WasmModule {
         linker
             .func_wrap("env", "sys_ipc_send", host_sys_ipc_send)
             .expect("Failed to link sys_ipc_send");
+
+        // generic syscall interface for 03_syscall.wasm demo
+        linker
+            .func_wrap("env", "syscall", host_syscall)
+            .expect("Failed to link syscall function");
 
         linker
     }

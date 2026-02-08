@@ -26,8 +26,7 @@ if ! cargo --config .cargo/config_aarch64.toml build \
     --target aarch64-jericho.json \
     --release \
     -Z build-std=core,compiler_builtins,alloc \
-    -Z build-std-features=compiler-builtins-mem \
-    -Z json-target-spec 2>&1 | tee target/aarch64/build_log.txt; then
+    -Z build-std-features=compiler-builtins-mem 2>&1 | tee target/aarch64/build_log.txt; then
     echo "x Build failed - cargo returned non-zero exit code"
     echo "x Build log saved to: target/aarch64/build_log.txt"
     exit 1

@@ -12,7 +12,7 @@ echo ""
 
 # Build kernel
 echo "* Building ARM64 kernel..."
-./build_arm64.sh 2>&1 | grep -E "(Building|✓|*)" | tail -5 || true
+./build_arm64.sh 2>&1 | grep -F -e "Building" -e "✓" -e "*" | tail -5 || true
 echo "* Build complete"
 echo ""
 
@@ -20,7 +20,32 @@ echo ""
 echo "> Running demo suite (15 second timeout)..."
 echo ""
 
-timeout 15s ./run_arm64.sh > /tmp/arm64_demo_raw.txt 2>&1 || true
+# Use QEMU's built-in file serial backend instead of shell I/O redirection.
+# This avoids WSL2-specific issues where -serial stdio output vanishes when
+# stdout is redirected through a subshell (PTY vs pipe chardev mismatch in
+# QEMU 6.2.0's stdio backend). With -serial file:, QEMU opens and writes
+# the file directly - no shell pipes, no fd inheritance, no buffering issues.
+rm -f /tmp/arm64_demo_raw.txt
+timeout 15s qemu-system-aarch64 \
+    -machine virt \
+    -cpu cortex-a57 \
+    -m 512M \
+    -kernel target/aarch64/kernel_arm64.bin \
+    -serial file:/tmp/arm64_demo_raw.txt \
+    -display none 2>/dev/null || true
+sync  # Force filesystem sync
+
+# Diagnostic: verify output was captured
+if [ ! -s /tmp/arm64_demo_raw.txt ]; then
+    echo "WARNING: QEMU serial output file is empty."
+    echo "  Trying fallback: -serial stdio with script(1) for PTY emulation..."
+    rm -f /tmp/arm64_demo_raw.txt
+    script -q -e -c "timeout 15s qemu-system-aarch64 \
+        -machine virt -cpu cortex-a57 -m 512M \
+        -kernel target/aarch64/kernel_arm64.bin \
+        -serial stdio -display none" /tmp/arm64_demo_raw.txt </dev/null 2>/dev/null || true
+    sync
+fi
 
 # Extract text from binary output
 DEMO_OUTPUT=$(strings /tmp/arm64_demo_raw.txt)
