@@ -98,7 +98,7 @@ A tight loop kept AI helpful:
 
 It's hard to talk about AI without also talking about **power**.
 
-AI is already being used in ways that range from inspiring to unsettling. It is implemented into marketing manipulation, surveillance architectures, weapons systems, and the kind of algorithms that displaces human judgment with statistical pattern-matching. Companies like Palantir surface in these conversations not because their technology is uniquely dangerous, but because they reveal an even deeper truth: institutions don't adopt tools neutrally; they adopt them to extend reach and usually consolidate control. AI doesn't create this impulse. It just makes it cheaper, faster, and harder to really see.
+AI is already being used in terrifying ways: manipulative marketing, surveillance systems, military applications, etc. Companies like Palantir surface in these conversations not because their technology is uniquely dangerous, but because they reveal an even deeper truth: institutions don't adopt tools neutrally; they adopt them to extend reach and usually consolidate control. AI doesn't create this impulse. It just makes it cheaper, faster, and harder to really see straight up.
 
 But I also resist the narrative that "AI will replace us." That story is too clean, too absolute. What I see is more complicated...
 
