@@ -10,10 +10,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      # bootloader 0.11.x build.rs spawns cargo internally with json target
-      # specs for bios stages - newer nightly needs this flag propagated
-      CARGO_UNSTABLE_JSON_TARGET_SPEC: "true"
 
     steps:
     - uses: actions/checkout@v4
@@ -21,20 +17,21 @@ jobs:
     - name: install rust nightly
       uses: dtolnay/rust-toolchain@nightly
       with:
+        toolchain: nightly-2026-02-01
         components: rust-src, llvm-tools-preview
 
     - name: install qemu
       run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
 
-    - name: enable json target spec globally
-      run: |
-        # bootloader 0.11.x runs internal cargo builds with json targets
-        # for bios stages - newer nightly needs this enabled globally so
-        # the bootloader's child cargo processes pick it up
-        printf '\n[unstable]\njson-target-spec = true\n' >> "${CARGO_HOME}/config.toml"
-
     - name: build kernel
-      run: cargo build --bin jericho_os --release --features bootloader-build
+      run: |
+        # first pass compiles the kernel binary + bootloader stages
+        cargo build --bin jericho_os --release --features bootloader-build
+        # build.rs runs before the kernel is linked, so boot images
+        # aren't created on a clean build. force a rerun now that
+        # the kernel binary exists
+        touch build.rs
+        cargo build --bin jericho_os --release --features bootloader-build
 
     - name: check binary size
       run: |
@@ -94,5 +91,5 @@ jobs:
         name: x86-64-output
         path: |
           output.txt
-          target/x86_64-unknown-none/release/build/*/out/boot-*.img
+          target/**/out/boot-*.img
         retention-days: 7
