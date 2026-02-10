@@ -10,6 +10,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # bootloader 0.11.x build.rs spawns cargo internally with json target
+      # specs for bios stages - newer nightly needs this flag propagated
+      CARGO_UNSTABLE_JSON_TARGET_SPEC: "true"
 
     steps:
     - uses: actions/checkout@v4
