@@ -21,11 +21,11 @@ JerichoOS is a research microkernel built in Rust (`no_std`) exploring **capabil
 
 ### Why JerichoOS?
 
-- 🔐 **Capability Security**: Fine-grained access control for kernel services
-- 🦀 **Memory Safe**: Written in Rust with zero unsafe abstractions where possible
-- 🌐 **WASM Runtime**: Run untrusted code safely using `wasmi` interpreter
-- 🎯 **Dual Architecture**: Unified codebase for x86-64 and ARM64
-- 🧪 **Research-Focused**: Designed for learning and experimentation
+- **Capability Security**: Fine-grained access control for kernel services
+- **Memory Safe**: Written in Rust with zero unsafe abstractions where possible
+- **WASM Runtime**: Run untrusted code safely using `wasmi` interpreter
+- **Dual Architecture**: Unified codebase for x86-64 and ARM64
+- **Research-Focused**: Designed for learning and experimentation
 
 ---
 
